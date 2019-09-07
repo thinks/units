@@ -22,56 +22,91 @@ void OnFatalError(const std::exception& ex) {
   }
 }
 
+// Unit instances can interact with each other if they have the same
+// tag (category), e.g. length, angle. Scaling is automatically handled by the
+// types, so that cm's can interact with mm's. However, this interaction is not 
+// always automatically handled. By design, we require an explicit cast to add 
+// mm's to cm's. The rationale for this is that it is not obvious what unit 
+// the result should be given in. By forcing the user to cast the values into 
+// the same scale we are defering the choice to the user.
+
 void main_func() {
   using namespace units;
 
-  auto k = 5.0_mm + 10.0_mm;
+  // Construction.
+  {
+    // Explicit value type.
+    constexpr auto a = units::Millimeters<float>{1.23f};
 
-  // Value type promotion.
-  auto j = 5.0_mm + 10_mm;
-  static_assert(std::is_same_v<decltype(j.value()), double>, "value type promotion");
+    // Automatic value type from literal operator.
+    constexpr auto b = 1.23_mm;
+    static_assert(std::is_same_v<decltype(b.value()), double>, "");
+  }
+
+  // scale_cast (also allows casting value type)
+  {
+    // cm -> mm
+    constexpr auto a = units::scale_cast<units::Millimeters<double>>(1_cm);
+
+    static_assert(std::is_same_v<std::remove_const_t<decltype(a)>,
+                                 units::Millimeters<double>>, "");
+    static_assert(a == 10.0_mm, "scaled value");
+
+    // Cast from literal operator value type to desired value type 
+    // (double -> float).
+    constexpr auto b = units::scale_cast<units::Millimeters<float>>(1.23_mm);
+    static_assert(std::is_same_v<decltype(b.value()), float>, "");
+
+    // Cannot cast between different tags.
+    // Doesn't compile, units have different tags (cm -> rad):
+    // constexpr auto c = units::scale_cast<units::Radians<double>>(1_cm);
+  }
 
   // Equality/inequality comparison.
-  static_assert(5.0_mm == 5_mm, "equality comparison with different value types");
-  static_assert(50_mm == 5_cm, "equality comparison with scale conversion");
-  static_assert(5.0_mm != 7_mm, "inequality comparison with different value types");
+  {
+    static_assert(5.0_mm == 5_mm, "different value types");
+    static_assert(50_mm == 5_cm, "different scale");
+    static_assert(5.0_mm != 7_mm, "different value types");
+    static_assert(41_mm != 4_cm, "different scale");
+  }
 
-  // Doesn't compile, units have different scale.
-  // auto j = 5.0_cm + 10.0_mm; 
-  constexpr auto jj = 5.0_cm + units::scale_cast<units::Centimeters<double>>(10.0_mm);
-  static_assert(jj == 6.0_cm, "");
+  // Arithmetic operations.
+  {
+    // Value type promotion follows the normal rules for built-in types.
+    // Here: double + long long -> double
+    constexpr auto a = 5.0_mm;
+    constexpr auto b = 10_mm;
+    constexpr auto c = a + b;
+    static_assert(std::is_same_v<decltype(a.value()), double>, "");
+    static_assert(std::is_same_v<decltype(b.value()), long long>, "");
+    static_assert(std::is_same_v<decltype(c.value()), double>, "value type promotion");
 
-  constexpr auto i = units::scale_cast<units::Millimeters<double>>(1_cm);
-  
-  static_assert(std::is_same_v<decltype(i), const units::Millimeters<double>>, "bad cast");
-  static_assert(i == 10.0_mm, "bad scaled value");
+    constexpr auto d = 5.0_cm;
+    constexpr auto e = 10_mm;
+    
+    // Doesn't compile, units have different scale:  
+    // constexpr auto f = d + e;
+    //
+    // Need to manually cast to same scale:
+    constexpr auto f = d + units::scale_cast<decltype(d)>(e);
+  }
 
-  // Doesn't compile, units have different tags.
-  // constexpr auto n = units::scale_cast<units::Radians<double>>(1_cm);
+  // Output stream operator.
+  {
+    std::cout.precision(15);
 
-  constexpr auto deg = 180.0_deg;
-  constexpr auto rad = 3.14159265359_rad; // pi
-  //static_assert(units::Radians<double>{M_PI} == deg, "deg/rad comparison"); // precision error
-  std::cout.precision(15);
-  std::cout << deg.value() << "\n";
-  std::cout << rad.value() << "\n";
-  std::cout << units::Radians<double>{M_PI}.value() << ", " << scale_cast<units::Radians<double>>(deg).value() << "\n";
-  std::cout << scale_cast<Degrees<double>>(rad).value() << "\n";
+    const auto b = 3.73_cm;
+    std::cout << units::scale_cast<units::Meters<double>>(b) << "\n";
+    std::cout << units::scale_cast<units::Centimeters<double>>(b) << "\n";
+    std::cout << units::scale_cast<units::Millimeters<double>>(b) << "\n";
 
-
-  auto m = 10.0_mm;
-  m += 3.0_mm;
-
-  const auto b = 3.73_cm;
-  std::cout << units::scale_cast<units::Meters<double>>(b) << "\n";
-  std::cout << units::scale_cast<units::Centimeters<double>>(b) << "\n";
-  std::cout << units::scale_cast<units::Millimeters<double>>(b) << "\n";
-
-  const auto a = 180.0_deg;
-  std::cout << units::scale_cast<units::Degrees<double>>(a) << "\n";
-  std::cout << units::scale_cast<units::Radians<double>>(a) << "\n";
+    std::cout << units::Radians<double>{M_PI} << ", "
+              << units::scale_cast<units::Radians<double>>(180.0_deg) << "\n";
+  }
 
   // test negation, uint -> int
+  // +=
+  // -=
 }
 
 int main(int argc, char* argv[]) {
