@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstdint>
 #include <exception>
 #include <iostream>
 #include <locale>
@@ -89,6 +90,26 @@ void main_func() {
     //
     // Need to manually cast to same scale:
     constexpr auto f = d + units::scale_cast<decltype(d)>(e);
+
+    // Unary negation.
+    constexpr auto g = 14.2_deg;
+    constexpr auto h = -g;
+    static_assert(h.value() == -g.value(), "");
+
+    // Unary division.
+    // Preserves dimensionality, simply divide the unit in "denom"
+    // equal parts.
+    constexpr auto i = 14_cm /= 7;
+    static_assert(i == 2_cm, "");
+
+    // Binary division.
+    // Dimensionality is lost and we get a (unit-less) scalar.
+    constexpr auto j = 14_cm / 7_cm;
+    static_assert(j == 2, "");
+    // Divide by scalar, dimensionality is preserved, result
+    // is a unit (same as lhs, possibly different value type).
+    constexpr auto k = 14_cm / 7;
+    static_assert(k == 2_cm, "");
   }
 
   // Output stream operator.
@@ -103,10 +124,6 @@ void main_func() {
     std::cout << units::Radians<double>{M_PI} << ", "
               << units::scale_cast<units::Radians<double>>(180.0_deg) << "\n";
   }
-
-  // test negation, uint -> int
-  // +=
-  // -=
 }
 
 int main(int argc, char* argv[]) {
