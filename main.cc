@@ -13,8 +13,6 @@
 
 #include "units.h"
 
-
-
 void OnFatalError(const std::exception& ex) {
   fprintf(stderr, "\n! %s\n", ex.what());
   fflush(stderr);  // It's here that failure may be discovered.
@@ -32,7 +30,7 @@ void OnFatalError(const std::exception& ex) {
 // the same scale we are defering the choice to the user.
 
 void main_func() {
-  using namespace units;
+  using namespace units::literals;
 
   // Construction.
   {
@@ -44,10 +42,10 @@ void main_func() {
     static_assert(std::is_same_v<decltype(b.value()), double>, "");
   }
 
-  // scale_cast (also allows casting value type)
+  // unit_cast (also allows casting value type)
   {
     // cm -> mm
-    constexpr auto a = units::scale_cast<units::Millimeters<double>>(1_cm);
+    constexpr auto a = units::unit_cast<units::Millimeters<double>>(1_cm);
 
     static_assert(std::is_same_v<std::remove_const_t<decltype(a)>,
                                  units::Millimeters<double>>, "");
@@ -55,12 +53,12 @@ void main_func() {
 
     // Cast from literal operator value type to desired value type 
     // (double -> float).
-    constexpr auto b = units::scale_cast<units::Millimeters<float>>(1.23_mm);
+    constexpr auto b = units::unit_cast<units::Millimeters<float>>(1.23_mm);
     static_assert(std::is_same_v<decltype(b.value()), float>, "");
 
     // Cannot cast between different tags.
     // Doesn't compile, units have different tags (cm -> rad):
-    // constexpr auto c = units::scale_cast<units::Radians<double>>(1_cm);
+    // constexpr auto c = units::unit_cast<units::Radians<double>>(1_cm);
   }
 
   // Equality/inequality comparison.
@@ -89,13 +87,14 @@ void main_func() {
     // constexpr auto f = d + e;
     //
     // Need to manually cast to same scale:
-    constexpr auto f = d + units::scale_cast<decltype(d)>(e);
+    constexpr auto f = d + units::unit_cast<decltype(d)>(e);
 
     // Unary negation.
     constexpr auto g = 14.2_deg;
     constexpr auto h = -g;
     static_assert(h.value() == -g.value(), "");
-
+    static_assert(-units::Centimeters<double>{2.14} == units::Centimeters<double>{-2.14}, "");
+      
     // Unary division.
     // Preserves dimensionality, simply divide the unit in "denom"
     // equal parts.
@@ -104,12 +103,13 @@ void main_func() {
 
     // Binary division.
     // Dimensionality is lost and we get a (unit-less) scalar.
+    // The scalar type is determined by normal arithmetic type promotion.
     constexpr auto j = 14_cm / 7_cm;
     static_assert(j == 2, "");
     // Divide by scalar, dimensionality is preserved, result
     // is a unit (same as lhs, possibly different value type).
-    constexpr auto k = 14_cm / 7;
-    static_assert(k == 2_cm, "");
+    constexpr auto k = 14_cm / 7.0;
+    static_assert(k == 2.0_cm, "");
   }
 
   // Output stream operator.
@@ -117,12 +117,12 @@ void main_func() {
     std::cout.precision(15);
 
     const auto b = 3.73_cm;
-    std::cout << units::scale_cast<units::Meters<double>>(b) << "\n";
-    std::cout << units::scale_cast<units::Centimeters<double>>(b) << "\n";
-    std::cout << units::scale_cast<units::Millimeters<double>>(b) << "\n";
+    std::cout << units::unit_cast<units::Meters<double>>(b) << "\n";
+    std::cout << units::unit_cast<units::Centimeters<double>>(b) << "\n";
+    std::cout << units::unit_cast<units::Millimeters<double>>(b) << "\n";
 
     std::cout << units::Radians<double>{M_PI} << ", "
-              << units::scale_cast<units::Radians<double>>(180.0_deg) << "\n";
+              << units::unit_cast<units::Radians<double>>(180.0_deg) << "\n";
   }
 }
 

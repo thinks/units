@@ -65,14 +65,14 @@ struct ScaleHelper {
     static_assert(std::is_arithmetic_v<ToArithT>,
                   "ToArithT must be arithmetic");
 
-    // Denominator is guaranteed to be  non-zero.             
+    // Denominator is guaranteed to be non-zero.             
     return numeric_cast<ToArithT>((ScaleDiv::num * v) / ScaleDiv::den);
   }
   // clang-format on
 };
 
 template <typename ScaleT, typename TagT>
-struct TagSuffix; // Not implementd.
+struct TagSuffix; // Generic, not implementd.
 template <>
 struct TagSuffix<units_internal::MeterScale, units_internal::LengthTag> {
   static constexpr const char* c_str() noexcept { return "m"; }
@@ -94,8 +94,9 @@ struct TagSuffix<units_internal::RadianScale, units_internal::AngleTag> {
   static constexpr const char* c_str() noexcept { return "rad"; }
 };
 
-using LiteralFloatType = double;
-using LiteralIntType = long long;
+// Value types for units created using literals.
+using LiteralFloatType = double; // literal: long double
+using LiteralIntType = long long; // literal: unsigned long long
 
 }  // namespace units_internal
 
@@ -107,6 +108,11 @@ using LiteralIntType = long long;
 // scalar, such that it would not affect the dimensionality?
 template <typename ArithT, typename ScaleT, typename TagT>
 class Unit {
+  static_assert(std::is_arithmetic_v<ArithT>, "ArithT must be arithmetic");
+  static_assert(units_internal::is_ratio_v<ScaleT>, "ScaleT must be a ratio");
+  static_assert(units_internal::is_tag_v<TagT>, "TagT must be a tag");
+  ArithT value_;
+
  public:
   using ValueType = ArithT;
   using ScaleType = ScaleT;
@@ -125,13 +131,11 @@ class Unit {
 
   constexpr ValueType value() const noexcept { return value_; }
 
-  // TODO(thinks): Should we pass in rhs as a universal reference?
-  //               Unit<ArithT2, ScaleT, TagType>&& rhs
   template<typename ArithT2>
   constexpr auto operator+=(const Unit<ArithT2, ScaleT, TagType> rhs) 
       // TODO(thinks): noexcept
       -> Unit<ArithT, ScaleT, TagType>& {
-    value_ += scale_cast<Unit<ArithT, ScaleT, TagType>>(rhs).value();
+    value_ += unit_cast<Unit<ArithT, ScaleT, TagType>>(rhs).value();
     return *this;
   }
 
@@ -139,7 +143,7 @@ class Unit {
   constexpr auto operator-=(const Unit<ArithT2, ScaleT, TagType> rhs) 
       // TODO(thinks): noexcept
       -> Unit<ArithT, ScaleT, TagType>& {
-    value_ -= scale_cast<Unit<ArithT, ScaleT, TagType>>(rhs).value();
+    value_ -= unit_cast<Unit<ArithT, ScaleT, TagType>>(rhs).value();
     return *this;
   }
 
@@ -168,14 +172,6 @@ class Unit {
     value_ /= rhs;    
     return *this;
   } 
-
-
- private:
-  ValueType value_;
-
-  static_assert(std::is_arithmetic_v<ArithT>, "ArithT must be arithmetic");
-  static_assert(units_internal::is_ratio_v<ScaleT>, "ScaleT must be a ratio");
-  static_assert(units_internal::is_tag_v<TagT>, "TagT must be a tag");
 };
 
 // Convert between values with the same tag using the scale factors 
@@ -186,7 +182,7 @@ class Unit {
 // clang-format off
 template <typename ToUnitT, 
           typename FromArithT, typename FromScaleT, typename TagT>
-constexpr auto scale_cast(const Unit<FromArithT, FromScaleT, TagT> from) 
+constexpr auto unit_cast(const Unit<FromArithT, FromScaleT, TagT> from) 
     //noexcept(noexcept(
     //  units_internal::ScaleHelper<FromScaleT, typename ToUnitT::ScaleType>::
     //    Scale<typename ToUnitT::ValueType>(from.value())))
@@ -208,9 +204,9 @@ template <typename ArithT, typename ArithT2,
           typename TagT>
 constexpr auto operator==(const Unit<ArithT, ScaleT, TagT> lhs,
                           const Unit<ArithT2, ScaleT2, TagT> rhs) 
-    //noexcept(noexcept(scale_cast<Unit<ArithT, ScaleT, TagT>>(rhs)))
+    //noexcept(noexcept(unit_cast<Unit<ArithT, ScaleT, TagT>>(rhs)))
     -> bool {
-  return lhs.value() == scale_cast<Unit<ArithT, ScaleT, TagT>>(rhs).value();
+  return lhs.value() == unit_cast<Unit<ArithT, ScaleT, TagT>>(rhs).value();
 }
 // clang-format on
 
@@ -223,9 +219,9 @@ template <typename ArithT, typename ArithT2,
           typename TagT>
 constexpr auto operator!=(const Unit<ArithT, ScaleT, TagT> lhs,
                           const Unit<ArithT2, ScaleT2, TagT> rhs) 
-    //noexcept(noexcept(scale_cast<Unit<ArithT, ScaleT, TagT>>(rhs)))
+    //noexcept(noexcept(unit_cast<Unit<ArithT, ScaleT, TagT>>(rhs)))
     -> bool {
-  return lhs.value() != scale_cast<Unit<ArithT, ScaleT, TagT>>(rhs).value();
+  return lhs.value() != unit_cast<Unit<ArithT, ScaleT, TagT>>(rhs).value();
 }
 // clang-format on
 
@@ -308,8 +304,8 @@ template <typename ArithT, typename ArithT2,
 constexpr auto operator/(const Unit<ArithT, ScaleT, TagT> lhs,
                          const Unit<ArithT2, ScaleT2, TagT> rhs) 
     // noexcept...
-    -> decltype(lhs.value() / scale_cast<decltype(lhs)>(rhs).value()) {
-  return lhs.value() / scale_cast<decltype(lhs)>(rhs).value();
+    -> decltype(lhs.value() / unit_cast<decltype(lhs)>(rhs).value()) {
+  return lhs.value() / unit_cast<decltype(lhs)>(rhs).value();
 }
 // clang-format on
 
@@ -326,7 +322,6 @@ constexpr auto operator/(const Unit<ArithT, ScaleT, TagT> lhs,
 }
 // clang-format on
 
-
 // Define user-visible types.
 //
 // clang-format off
@@ -337,6 +332,8 @@ template <typename ArithT> using Millimeters = Unit<ArithT, units_internal::Mill
 template <typename ArithT> using Degrees = Unit<ArithT, units_internal::DegreeScale, units_internal::AngleTag>; 
 template <typename ArithT> using Radians = Unit<ArithT, units_internal::RadianScale, units_internal::AngleTag>; 
 // clang-format on
+
+inline namespace literals {
 
 // Literals.
 //
@@ -401,7 +398,9 @@ constexpr auto operator"" _rad(long double v)
   return {units_internal::numeric_cast<units_internal::LiteralFloatType>(v)};
 }
 
-// Simple output overload.
+} // namespace literals
+
+// Simple output overload, prints unit suffix after value.
 //
 // clang-format off
 template <typename ArithT, typename ScaleT, typename TagT>
