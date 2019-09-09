@@ -9,6 +9,7 @@ namespace units {
 namespace units_internal {
 
 // Categories.
+// NOTE(thinks): Could add Gy/cGy here...
 struct LengthTag;
 struct AngleTag;
 
@@ -42,7 +43,7 @@ template <typename T>
 constexpr bool is_tag_v = is_tag<T>::value;
 
 template <typename ToArithT, typename FromArithT>
-constexpr auto numeric_cast(const FromArithT v) noexcept -> ToArithT {
+constexpr auto numeric_cast(const FromArithT v) /*noexcept*/ -> ToArithT {
   // TODO(thinks): Implement range checking, similar to boost::numeric_cast.
   return static_cast<ToArithT>(v);
 }
@@ -65,12 +66,13 @@ struct ScaleHelper {
     static_assert(std::is_arithmetic_v<ToArithT>,
                   "ToArithT must be arithmetic");
 
-    // Denominator is guaranteed to be non-zero.             
+    // Denominator is guaranteed to be non-zero.
     return numeric_cast<ToArithT>((ScaleDiv::num * v) / ScaleDiv::den);
   }
   // clang-format on
 };
 
+// Suffix string based on scale and category tag.
 template <typename ScaleT, typename TagT>
 struct TagSuffix; // Generic, not implementd.
 template <>
@@ -131,19 +133,23 @@ class Unit {
 
   constexpr ValueType value() const noexcept { return value_; }
 
-  template<typename ArithT2>
-  constexpr auto operator+=(const Unit<ArithT2, ScaleT, TagType> rhs) 
+  // Add a unit.
+  // Supports different scales since there is no ambiguity in return type.
+  template<typename ArithT2, typename ScaleT2>
+  constexpr auto operator+=(const Unit<ArithT2, ScaleT2, TagT> rhs) 
       // TODO(thinks): noexcept
-      -> Unit<ArithT, ScaleT, TagType>& {
-    value_ += unit_cast<Unit<ArithT, ScaleT, TagType>>(rhs).value();
+      -> Unit& {
+    value_ += unit_cast<Unit>(rhs).value();
     return *this;
   }
 
-  template<typename ArithT2>
-  constexpr auto operator-=(const Unit<ArithT2, ScaleT, TagType> rhs) 
+  // Subtract a unit.
+  // Supports different scales since there is no ambiguity in return type.
+  template<typename ArithT2, typename ScaleT2>
+  constexpr auto operator-=(const Unit<ArithT2, ScaleT2, TagT> rhs) 
       // TODO(thinks): noexcept
-      -> Unit<ArithT, ScaleT, TagType>& {
-    value_ -= unit_cast<Unit<ArithT, ScaleT, TagType>>(rhs).value();
+      -> Unit& {
+    value_ -= unit_cast<Unit>(rhs).value();
     return *this;
   }
 
@@ -154,7 +160,7 @@ class Unit {
   template<typename ArithT2>
   constexpr auto operator*=(const ArithT2 rhs) 
       // TODO(thinks): noexcept
-      -> Unit<ArithT, ScaleT, TagType>& {
+      -> Unit& {
     static_assert(std::is_arithmetic_v<ArithT2>, "ArithT2 must be arithmetic");    
     value_ *= rhs;    
     return *this;
@@ -167,11 +173,114 @@ class Unit {
   template<typename ArithT2>
   constexpr auto operator/=(const ArithT2 rhs) 
       // TODO(thinks): noexcept
-      -> Unit<ArithT, ScaleT, TagType>& {
+      -> Unit& {
     static_assert(std::is_arithmetic_v<ArithT2>, "ArithT2 must be arithmetic");    
     value_ /= rhs;    
     return *this;
   } 
+
+  // Equality comparison of same-tag-units with different value
+  // type and/or scale. Normal comparison rules for arithmetic types apply.
+  //
+  // Allowing units of different scale here since there is no ambiguity in
+  // return type.
+  //
+  // clang-format off
+  template <typename ArithT2, typename ScaleT2>
+  friend constexpr auto operator==(const Unit lhs,
+                                   const Unit<ArithT2, ScaleT2, TagT> rhs) 
+      //noexcept(noexcept(unit_cast<Unit<ArithT, ScaleT, TagT>>(rhs)))
+      -> bool {
+    return lhs.value() == unit_cast<Unit>(rhs).value();
+  }
+  // clang-format on
+
+  // Inequality comparison of same-tag-units with different value
+  // type and/or scale. Normal comparison rules for arithmetic types apply.
+  //
+  // Allowing units of different scale here since there is no ambiguity in
+  // return type.
+  //
+  // clang-format off
+  template <typename ArithT2, typename ScaleT2>
+  friend constexpr auto operator!=(const Unit lhs,
+                                   const Unit<ArithT2, ScaleT2, TagT> rhs) 
+      //noexcept(noexcept(unit_cast<Unit<ArithT, ScaleT, TagT>>(rhs)))
+      -> bool {
+    return lhs.value() != unit_cast<Unit>(rhs).value();
+  }
+  // clang-format on
+
+  // Unary negation.
+  // The returned unit's value type follows normal arithmetic promotion.
+  //
+  // clang-format off
+  friend constexpr auto operator-(const Unit u)
+      //noexcept(noexcept(-u.value())) 
+      -> Unit<decltype(-u.value()), ScaleT, TagT> {
+    return {-u.value()};
+  }
+  // clang-format on
+
+  // Binary subtraction.
+  // Supports different value types.
+  // The returned unit's value type follows normal arithmetic promotion.
+  //
+  // clang-format off
+  template <typename ArithT2>
+  friend constexpr auto operator-(const Unit lhs,
+                                  const Unit<ArithT2, ScaleT, TagT> rhs) 
+      //noexcept(noexcept(lhs.value() - rhs.value()))
+      -> Unit<decltype(lhs.value() - rhs.value()), ScaleT, TagT> {
+    return {lhs.value() - rhs.value()};
+  }
+  // clang-format on
+
+  // Binary addition.
+  // Supports different value types.
+  // The returned unit's value type follows normal arithmetic promotion.
+  //
+  // clang-format off
+  template <typename ArithT2>
+  friend constexpr auto operator+(const Unit lhs,
+                                  const Unit<ArithT2, ScaleT, TagT> rhs) 
+      //noexcept(noexcept(lhs.value() + rhs.value()))
+      -> Unit<decltype(lhs.value() + rhs.value()), ScaleT, TagT> {
+    return {lhs.value() + rhs.value()};
+  }
+  // clang-format on
+
+  // Multiply by scalar. 
+  // Preserves multiplicative ordering.
+  // The returned unit's value type follows normal arithmetic promotion.
+  // 
+  // clang-format off
+  template <typename ArithT2>
+  friend constexpr auto operator*(const Unit lhs,
+                                  const ArithT2 rhs) 
+      // noexcept...
+      -> Unit<decltype(lhs.value() * rhs), ScaleT, TagT> {
+    static_assert(std::is_arithmetic_v<ArithT2>, "ArithT2 must be arithmetic");    
+    return {lhs.value() * rhs};    
+  }
+  // clang-format on
+
+  // Multiply by scalar. 
+  // Preserves multiplicative ordering.
+  // The returned unit's value type follows normal arithmetic promotion.
+  // 
+  // clang-format off
+  template <typename ArithT, typename ScaleT, typename TagT,
+            typename ArithT2>
+  friend constexpr auto operator*(const ArithT2 lhs,
+                                  const Unit rhs) 
+      // noexcept...
+      -> Unit<decltype(lhs * rhs.value()), ScaleT, TagT> {
+    static_assert(std::is_arithmetic_v<ArithT2>, "ArithT2 must be arithmetic");
+    return {lhs * rhs.value()};
+  }
+  // clang-format on
+
 };
 
 // Convert between values with the same tag using the scale factors 
@@ -189,113 +298,22 @@ constexpr auto unit_cast(const Unit<FromArithT, FromScaleT, TagT> from)
     -> Unit<typename ToUnitT::ValueType, typename ToUnitT::ScaleType, TagT> {
   static_assert(std::is_same_v<typename ToUnitT::TagType, TagT>,
                 "units must have same tag");
-  return {units_internal::ScaleHelper<FromScaleT, typename ToUnitT::ScaleType>::
-              Scale<typename ToUnitT::ValueType>(from.value())};
+  using ToScaleT = typename ToUnitT::ScaleType;
+  using ScaleHelper = units_internal::ScaleHelper<FromScaleT, ToScaleT>;
+  return {ScaleHelper::Scale<typename ToUnitT::ValueType>(from.value())};
 }
 // clang-format on
 
 
-// Inequality comparison of same-tag-units with different value
-// type and/or scale. Normal comparison rules for arithmetic types apply.
-//
-// clang-format off
-template <typename ArithT, typename ArithT2, 
-          typename ScaleT, typename ScaleT2,
-          typename TagT>
-constexpr auto operator==(const Unit<ArithT, ScaleT, TagT> lhs,
-                          const Unit<ArithT2, ScaleT2, TagT> rhs) 
-    //noexcept(noexcept(unit_cast<Unit<ArithT, ScaleT, TagT>>(rhs)))
-    -> bool {
-  return lhs.value() == unit_cast<Unit<ArithT, ScaleT, TagT>>(rhs).value();
-}
-// clang-format on
 
-// Inequality comparison of same-tag-units with different value
-// type and/or scale. Normal comparison rules for arithmetic types apply.
-//
-// clang-format off
-template <typename ArithT, typename ArithT2, 
-          typename ScaleT, typename ScaleT2, 
-          typename TagT>
-constexpr auto operator!=(const Unit<ArithT, ScaleT, TagT> lhs,
-                          const Unit<ArithT2, ScaleT2, TagT> rhs) 
-    //noexcept(noexcept(unit_cast<Unit<ArithT, ScaleT, TagT>>(rhs)))
-    -> bool {
-  return lhs.value() != unit_cast<Unit<ArithT, ScaleT, TagT>>(rhs).value();
-}
-// clang-format on
 
-// Unary negation.
-//
-// clang-format off
-template <typename ArithT, typename ScaleT, typename TagT>
-constexpr auto operator-(const Unit<ArithT, ScaleT, TagT> u) 
-    //noexcept(noexcept(-u.value())) 
-    -> Unit<decltype(-u.value()), ScaleT, TagT> {
-  return {-u.value()};
-}
-// clang-format on
 
-// Add units, supports different value types.
-//
-// TODO(thinks): Consider using += operator as implementation.
-//
-// clang-format off
-template <typename ArithT, typename ArithT2, typename ScaleT, typename TagT>
-constexpr auto operator+(const Unit<ArithT, ScaleT, TagT> lhs,
-                         const Unit<ArithT2, ScaleT, TagT> rhs) 
-    //noexcept(noexcept(lhs.value() + rhs.value()))
-    -> Unit<decltype(lhs.value() + rhs.value()), ScaleT, TagT> {
-  return {lhs.value() + rhs.value()};
-}
-// clang-format on
-
-// Subtract units, supports different value types.
-//
-// TODO(thinks): Consider using -= operator as implementation.
-// 
-// clang-format off
-template <typename ArithT, typename ArithT2, typename ScaleT, typename TagT>
-constexpr auto operator-(const Unit<ArithT, ScaleT, TagT> lhs,
-                         const Unit<ArithT2, ScaleT, TagT> rhs) 
-    //noexcept(noexcept(lhs.value() - rhs.value()))
-    -> Unit<decltype(lhs.value() - rhs.value()), ScaleT, TagT> {
-  return {lhs.value() - rhs.value()};
-}
-// clang-format on
-
-// Multiply by scalar. Preserves multiplication ordering.
-// 
-// clang-format off
-template <typename ArithT, typename ScaleT, typename TagT,
-          typename ArithT2>
-constexpr auto operator*(const Unit<ArithT, ScaleT, TagT> lhs,
-                         const ArithT2 rhs) 
-    // noexcept...
-    -> Unit<decltype(lhs.value() * rhs), ScaleT, TagT> {
-  static_assert(std::is_arithmetic_v<ArithT2>, "ArithT2 must be arithmetic");    
-  return {lhs.value() * rhs};    
-}
-// clang-format on
-
-// Multiply by scalar. Preserves multiplication ordering.
-// 
-// clang-format off
-template <typename ArithT, typename ScaleT, typename TagT,
-          typename ArithT2>
-constexpr auto operator*(const ArithT2 lhs,
-                         const Unit<ArithT, ScaleT, TagT> rhs) 
-    // noexcept...
-    -> Unit<decltype(lhs * rhs.value()), ScaleT, TagT> {
-  static_assert(std::is_arithmetic_v<ArithT2>, "ArithT2 must be arithmetic");
-  return {lhs * rhs.value()};
-}
-// clang-format on
 
 // Divide to units sharing the same tag to produce a scalar value.
 // Essentially, dimensionality is cancelled out by this operation.
 //
-// TODO(thinks): require same ScaleT to be consistent?
+// Allowing units of different scale here since there is no ambiguity in
+// return type, which is a scalar.
 // 
 // clang-format off
 template <typename ArithT, typename ArithT2, 

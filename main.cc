@@ -80,6 +80,28 @@ void main_func() {
     static_assert(std::is_same_v<decltype(b.value()), long long>, "");
     static_assert(std::is_same_v<decltype(c.value()), double>, "value type promotion");
 
+    // Unary addition (add-equals), supports different scales.
+    // Return type is always same as lhs.
+    static_assert((15_mm += 1_mm) == 16_mm &&
+                  (15_mm += 1_mm) == 1.6_cm, "");
+    static_assert((15_mm += 1_cm) == 25_mm && 
+                  (15_mm += 1_cm) == 2.5_cm, "");
+    // Doesn't compile, cannot add a scalar to a unit:
+    // static_assert((10_mm += 1) == ???, "");
+
+    // Unary subtraction (sub-equals), supports different scales.
+    // Return type is always same as lhs.
+    static_assert((15_mm -= 1_mm) == 14_mm &&
+                  (15_mm -= 1_mm) == 1.4_cm, "");
+    static_assert((15_mm -= 1_cm) == 5_mm && 
+                  (15_mm -= 1_cm) == 0.5_cm, "");
+    // Doesn't compile, cannot subtract a scalar from a unit:
+    // static_assert((10_mm -= 1) == ???, "");
+
+    // Unary multiplication by scalar.
+    static_assert((1.4_cm *= 10) == 14.0_cm, "");
+
+    // Binary addition.
     constexpr auto d = 5.0_cm;
     constexpr auto e = 10_mm;
     
@@ -88,6 +110,7 @@ void main_func() {
     //
     // Need to manually cast to same scale:
     constexpr auto f = d + units::unit_cast<decltype(d)>(e);
+    static_assert(std::is_same_v<decltype(f), decltype(d)>, "");
 
     // Unary negation.
     constexpr auto g = 14.2_deg;
@@ -102,14 +125,19 @@ void main_func() {
     static_assert(i == 2_cm, "");
 
     // Binary division.
-    // Dimensionality is lost and we get a (unit-less) scalar.
+    // Divide by unit, dimensionality is lost and we get a (unit-less) scalar.
     // The scalar type is determined by normal arithmetic type promotion.
+    // Note that we support units of different scales since the return type
+    // is not a unit.
     constexpr auto j = 14_cm / 7_cm;
     static_assert(j == 2, "");
+    constexpr auto k = 14_cm / 70_mm;
+    static_assert(k == 2, "");
+
     // Divide by scalar, dimensionality is preserved, result
     // is a unit (same as lhs, possibly different value type).
-    constexpr auto k = 14_cm / 7.0;
-    static_assert(k == 2.0_cm, "");
+    constexpr auto m = 14_cm / 7.0;
+    static_assert(m == 2.0_cm, "");
   }
 
   // Output stream operator.
