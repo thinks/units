@@ -9,9 +9,9 @@ namespace units {
 namespace units_internal {
 
 // Categories.
-// NOTE(thinks): Could add Gy/cGy here...
 struct LengthTag;
 struct AngleTag;
+struct GrayTag;
 
 // Define scale factors for lengths. 
 // Using centimeters as unit length.
@@ -23,6 +23,11 @@ using MillimeterScale = std::ratio<1, 10>::type;
 // Using degrees as unit angle.
 using DegreeScale = std::ratio<1>::type; // Unit angle.
 using RadianScale = std::ratio<18000000000000, 314159265359>::type; // Approx 180/pi.
+
+// Define scale factors for Gray, defined as the absorption of 
+// one joule of radiation energy per kilogram of matter.
+using GrayScale = std::ratio<1>::type; // Unit absorption.
+using CentiGrayScale = std::ratio<1, 100>::type;
 
 // std::ratio traits.
 template <typename T>
@@ -39,6 +44,8 @@ template <>
 struct is_tag<LengthTag> : public std::true_type {};
 template <>
 struct is_tag<AngleTag> : public std::true_type {};
+template <>
+struct is_tag<GrayTag> : public std::true_type {};
 template <typename T>
 constexpr bool is_tag_v = is_tag<T>::value;
 
@@ -94,6 +101,14 @@ struct TagSuffix<units_internal::DegreeScale, units_internal::AngleTag> {
 template <>
 struct TagSuffix<units_internal::RadianScale, units_internal::AngleTag> {
   static constexpr const char* c_str() noexcept { return "rad"; }
+};
+template <>
+struct TagSuffix<units_internal::GrayScale, units_internal::GrayTag> {
+  static constexpr const char* c_str() noexcept { return "Gy"; }
+};
+template <>
+struct TagSuffix<units_internal::CentiGrayScale, units_internal::GrayTag> {
+  static constexpr const char* c_str() noexcept { return "cGy"; }
 };
 
 // Value types for units created using literals.
@@ -349,6 +364,9 @@ template <typename ArithT> using Millimeters = Unit<ArithT, units_internal::Mill
 
 template <typename ArithT> using Degrees = Unit<ArithT, units_internal::DegreeScale, units_internal::AngleTag>; 
 template <typename ArithT> using Radians = Unit<ArithT, units_internal::RadianScale, units_internal::AngleTag>; 
+
+template <typename ArithT> using Gray = Unit<ArithT, units_internal::GrayScale, units_internal::GrayTag>; 
+template <typename ArithT> using CentiGray = Unit<ArithT, units_internal::CentiGrayScale, units_internal::GrayTag>; 
 // clang-format on
 
 inline namespace literals {
@@ -413,6 +431,28 @@ constexpr auto operator"" _rad(unsigned long long v)
 constexpr auto operator"" _rad(long double v)
     // noexcept 
     -> Radians<units_internal::LiteralFloatType> {
+  return {units_internal::numeric_cast<units_internal::LiteralFloatType>(v)};
+}
+
+constexpr auto operator"" _Gy(unsigned long long v)
+    // noexcept 
+    -> Gray<units_internal::LiteralIntType> {
+  return {units_internal::numeric_cast<units_internal::LiteralIntType>(v)};
+}
+constexpr auto operator"" _Gy(long double v)
+    // noexcept 
+    -> Gray<units_internal::LiteralFloatType> {
+  return {units_internal::numeric_cast<units_internal::LiteralFloatType>(v)};
+}
+
+constexpr auto operator"" _cGy(unsigned long long v)
+    // noexcept 
+    -> CentiGray<units_internal::LiteralIntType> {
+  return {units_internal::numeric_cast<units_internal::LiteralIntType>(v)};
+}
+constexpr auto operator"" _cGy(long double v)
+    // noexcept 
+    -> CentiGray<units_internal::LiteralFloatType> {
   return {units_internal::numeric_cast<units_internal::LiteralFloatType>(v)};
 }
 

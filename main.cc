@@ -1,4 +1,4 @@
-#define _USE_MATH_DEFINES 
+#define _USE_MATH_DEFINES  // M_PI
 
 #include <clocale>
 #include <cmath>
