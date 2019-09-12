@@ -11,6 +11,8 @@
 #include <sstream>
 #include <system_error>
 
+#include <functional>
+
 #include "units.h"
 
 void OnFatalError(const std::exception& ex) {
