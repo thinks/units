@@ -9,7 +9,7 @@
 #include <ratio>
 #include <type_traits>
 
-namespace units {
+namespace thinks {
 namespace units_internal {
 
 // Categories.
@@ -364,7 +364,7 @@ template <typename ArithT> using Gray = Unit<ArithT, units_internal::GrayScale, 
 template <typename ArithT> using CentiGray = Unit<ArithT, units_internal::CentiGrayScale, units_internal::DoseTag>; 
 // clang-format on
 
-inline namespace literals {
+inline namespace unit_literals {
 
 // Literals.
 //
@@ -465,4 +465,4 @@ std::ostream& operator<<(std::ostream& os,
 }
 // clang-format on
 
-}  // namespace units
+}  // namespace thinks
