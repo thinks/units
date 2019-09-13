@@ -13,9 +13,9 @@ namespace units {
 namespace units_internal {
 
 // Categories.
-// NOTE(thinks): Could add Gy/cGy here...
 struct LengthTag;
 struct AngleTag;
+struct DoseTag;
 
 // Define scale factors for lengths. 
 // Using centimeters as unit length.
@@ -27,6 +27,11 @@ using MillimeterScale = std::ratio<1, 10>::type;
 // Using degrees as unit angle.
 using DegreeScale = std::ratio<1>::type; // Unit angle.
 using RadianScale = std::ratio<18000000000000, 314159265359>::type; // Approx 180/pi.
+
+// Define scale factors for Gray, defined as the absorption of 
+// one joule of radiation energy per kilogram of matter.
+using GrayScale = std::ratio<1>::type; // Unit absorption.
+using CentiGrayScale = std::ratio<1, 100>::type;
 
 // std::ratio traits.
 template <typename T>
@@ -43,6 +48,8 @@ template <>
 struct is_tag<LengthTag> : public std::true_type {};
 template <>
 struct is_tag<AngleTag> : public std::true_type {};
+template <>
+struct is_tag<DoseTag> : public std::true_type {};
 template <typename T>
 constexpr bool is_tag_v = is_tag<T>::value;
 
@@ -99,6 +106,14 @@ template <>
 struct TagSuffix<units_internal::RadianScale, units_internal::AngleTag> {
   static constexpr const char* c_str() noexcept { return "rad"; }
 };
+template <>
+struct TagSuffix<units_internal::GrayScale, units_internal::DoseTag> {
+  static constexpr const char* c_str() noexcept { return "Gy"; }
+};
+template <>
+struct TagSuffix<units_internal::CentiGrayScale, units_internal::DoseTag> {
+  static constexpr const char* c_str() noexcept { return "cGy"; }
+};
 
 // Value types for units created using literals.
 using LiteralFloatType = double; // literal: long double
@@ -106,12 +121,8 @@ using LiteralIntType = long long; // literal: unsigned long long
 
 }  // namespace units_internal
 
-// Implement operators that would not change dimensionality, e.g.
-// addition/subtraction, but not multiplication/division. We could
-// support the latter, but it would be counter-intuitive.
-//
-// Perhaps the latter should be supported with the other operand being a pure
-// scalar, such that it would not affect the dimensionality?
+// Template that can be customized to hold a value representing
+// a unit of some sort, e.g. centimeters, radians, etc.
 template <typename ArithT, typename ScaleT, typename TagT>
 class Unit {
   static_assert(std::is_arithmetic_v<ArithT>, "ArithT must be arithmetic");
@@ -216,7 +227,7 @@ class Unit {
   // clang-format on
 
   // Unary negation.
-  // The returned unit's value type follows normal arithmetic promotion.
+  // The value type of the returned unit follows normal arithmetic promotion.
   //
   // clang-format off
   friend constexpr auto operator-(const Unit u)
@@ -228,7 +239,10 @@ class Unit {
 
   // Binary subtraction.
   // Supports different value types.
-  // The returned unit's value type follows normal arithmetic promotion.
+  // The value type of the returned unit follows normal arithmetic promotion.
+  //
+  // Requires the units to have the same scale factor, since the return type
+  // would otherwise be ambiguous.
   //
   // clang-format off
   template <typename ArithT2>
@@ -242,7 +256,10 @@ class Unit {
 
   // Binary addition.
   // Supports different value types.
-  // The returned unit's value type follows normal arithmetic promotion.
+  // The value type of the returned unit follows normal arithmetic promotion.
+  //
+  // Requires the units to have the same scale factor, since the return type
+  // would otherwise be ambiguous.
   //
   // clang-format off
   template <typename ArithT2>
@@ -256,7 +273,7 @@ class Unit {
 
   // Multiply by scalar. 
   // Preserves multiplicative ordering.
-  // The returned unit's value type follows normal arithmetic promotion.
+  // The value type of the returned unit follows normal arithmetic promotion.
   // 
   // clang-format off
   template <typename ArithT2>
@@ -271,7 +288,7 @@ class Unit {
 
   // Multiply by scalar. 
   // Preserves multiplicative ordering.
-  // The returned unit's value type follows normal arithmetic promotion.
+  // The value type of the returned unit follows normal arithmetic promotion.
   // 
   // clang-format off
   template <typename ArithT, typename ScaleT, typename TagT,
@@ -285,12 +302,37 @@ class Unit {
   }
   // clang-format on
 
+  // Divide two units sharing the same tag to produce a scalar value.
+  // Essentially, dimensionality is cancelled out by this operation.
+  //
+  // Allowing units of different scale here since there is no ambiguity in
+  // return type, which is a scalar.
+  // 
+  // clang-format off
+  template <typename ArithT2, typename ScaleT2>
+  friend constexpr auto operator/(const Unit lhs, 
+                                  const Unit<ArithT2, ScaleT2, TagT> rhs) 
+      // noexcept...
+      -> decltype(lhs.value() / unit_cast<Unit>(rhs).value()) {
+    return lhs.value() / unit_cast<Unit>(rhs).value();
+  }
+  // clang-format on
+
+  // Divide by scalar, preserves unit dimensionality.
+  // 
+  // clang-format off
+  template <typename ArithT2>
+  friend constexpr auto operator/(const Unit lhs, const ArithT2 rhs) 
+      // noexcept...
+      -> Unit<decltype(lhs.value() / rhs), ScaleT, TagT> {
+    static_assert(std::is_arithmetic_v<ArithT2>, "ArithT2 must be arithmetic");
+    return {lhs.value() / rhs};
+  }
+  // clang-format on
 };
 
-// Convert between values with the same tag using the scale factors 
-// and value type conversion.
-// 
-// 
+// Convert between units with the same tag that have potentially different
+// scale factors and value types.
 //
 // clang-format off
 template <typename ToUnitT, 
@@ -308,42 +350,6 @@ constexpr auto unit_cast(const Unit<FromArithT, FromScaleT, TagT> from)
 }
 // clang-format on
 
-
-
-
-
-
-// Divide to units sharing the same tag to produce a scalar value.
-// Essentially, dimensionality is cancelled out by this operation.
-//
-// Allowing units of different scale here since there is no ambiguity in
-// return type, which is a scalar.
-// 
-// clang-format off
-template <typename ArithT, typename ArithT2, 
-          typename ScaleT, typename ScaleT2, 
-          typename TagT>
-constexpr auto operator/(const Unit<ArithT, ScaleT, TagT> lhs,
-                         const Unit<ArithT2, ScaleT2, TagT> rhs) 
-    // noexcept...
-    -> decltype(lhs.value() / unit_cast<decltype(lhs)>(rhs).value()) {
-  return lhs.value() / unit_cast<decltype(lhs)>(rhs).value();
-}
-// clang-format on
-
-// Divide by scalar, preserves unit dimensionality.
-// 
-// clang-format off
-template <typename ArithT, typename ScaleT, typename TagT,
-          typename ArithT2>
-constexpr auto operator/(const Unit<ArithT, ScaleT, TagT> lhs,
-                         const ArithT2 rhs) 
-    // noexcept...
-    -> Unit<decltype(lhs.value() / rhs), ScaleT, TagT> {
-  return {lhs.value() / rhs};
-}
-// clang-format on
-
 // Define user-visible types.
 //
 // clang-format off
@@ -353,6 +359,9 @@ template <typename ArithT> using Millimeters = Unit<ArithT, units_internal::Mill
 
 template <typename ArithT> using Degrees = Unit<ArithT, units_internal::DegreeScale, units_internal::AngleTag>; 
 template <typename ArithT> using Radians = Unit<ArithT, units_internal::RadianScale, units_internal::AngleTag>; 
+
+template <typename ArithT> using Gray = Unit<ArithT, units_internal::GrayScale, units_internal::DoseTag>; 
+template <typename ArithT> using CentiGray = Unit<ArithT, units_internal::CentiGrayScale, units_internal::DoseTag>; 
 // clang-format on
 
 inline namespace literals {
@@ -417,6 +426,28 @@ constexpr auto operator"" _rad(unsigned long long v)
 constexpr auto operator"" _rad(long double v)
     // noexcept 
     -> Radians<units_internal::LiteralFloatType> {
+  return {units_internal::numeric_cast<units_internal::LiteralFloatType>(v)};
+}
+
+constexpr auto operator"" _Gy(unsigned long long v)
+    // noexcept 
+    -> Gray<units_internal::LiteralIntType> {
+  return {units_internal::numeric_cast<units_internal::LiteralIntType>(v)};
+}
+constexpr auto operator"" _Gy(long double v)
+    // noexcept 
+    -> Gray<units_internal::LiteralFloatType> {
+  return {units_internal::numeric_cast<units_internal::LiteralFloatType>(v)};
+}
+
+constexpr auto operator"" _cGy(unsigned long long v)
+    // noexcept 
+    -> CentiGray<units_internal::LiteralIntType> {
+  return {units_internal::numeric_cast<units_internal::LiteralIntType>(v)};
+}
+constexpr auto operator"" _cGy(long double v)
+    // noexcept 
+    -> CentiGray<units_internal::LiteralFloatType> {
   return {units_internal::numeric_cast<units_internal::LiteralFloatType>(v)};
 }
 
