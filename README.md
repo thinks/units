@@ -1,23 +1,21 @@
 # Units
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This repository contains a single-file, header-only, no-dependencies C++ library for performing type-safe operations on values representing units. A simple example illustrates these ideas.
+This repository contains a single-file, header-only, no-dependencies, mostly compile-time C++ library for performing type-safe operations on values representing units. There are plenty of cases where misinterpretating the meaning of a quantity can have catastrophic consequences. Some classic example include `centimeters`/`millimeters` and `degrees`/`radians`. Even the clever people at [NASA](https://www.latimes.com/archives/la-xpm-1999-oct-01-mn-17288-story.html) seem to struggle with such issues from time to time. A simple example illustrates a more type-safe approach for handling units.
 ```cpp
 #include <iostream>
 #include "thinks/units/units.h"
 
-int main(int argc, char* argv[]) {
-  using namespace units::literals;
+void Foo() {
+  using namespace thinks::unit_literals;
 
   // Construction using literal, conversion using explicit casts.
   constexpr auto my_mm = 12.3_mm;
-  constexpr auto my_cm = units::unit_cast<units::Centimeters<double>>(mm);
-  constexpr auto my_m = units::unit_cast<units::Meters<double>>(mm);
+  constexpr auto my_cm = thinks::unit_cast<thinks::Centimeters<double>>(my_mm);
+  constexpr auto my_m = thinks::unit_cast<thinks::Meters<double>>(my_mm);
 
   // Prints "12.3 [mm] is the same as 1.23 [cm] or 0.0123 [m]"
-  std::cout << my_mm " is the same as " << my_cm << " or " << my_m << '\n';
-
-  return 0;
+  std::cout << my_mm << " is the same as " << my_cm << " or " << my_m << '\n';
 }
 ```
 The key idea is that a value representing a millimeter quantity has a different type than a value representing a centimeter quantity. Converting between millimeters and centimeters is of course trivial, but requires an explicit cast. This can be used to create type-safe interfaces, avoiding reliance on conventions or other hard to enforce constructs. Consider the following weakly enforced code:
@@ -29,7 +27,7 @@ void SomeFunctionThatTakesInMm(double offset) { ... }
 void Foo() {
   // Clearly wrong, but the compiler has no way of knowing since 
   // we are using the built-in type 'double' to represent both 
-  // mm and cm quantities.
+  // [mm] and [cm] quantities.
   const auto my_value = SomeFunctionThatReturnsCm();
   SomeFunctionThatTakesInMm(my_value);
 }
@@ -45,22 +43,57 @@ void Foo() {
   const auto my_value = SomeFunctionThatReturnsCm();
   
   // The following won't compile, there is no way to automatically 
-  // convert mm to cm.
+  // convert [mm] to [cm].
   //
   // SomeFunctionThatTakesInMm(my_value);
   // 
-  // Force user to explicit convert the value to mm, which will automatically 
+  // Force user to explicit convert the value to [mm], which will automatically 
   // apply the required scaling.
   SomeFunctionThatTakesInMm(units::unit_cast<units::Millimeters<double>>(my_value));
 }
 ```
 Above
 
+behave like built-in types, value type promotion
+
+changes base unit to get best precision, cm in our case
+
 compile-time
 
 
 
 ## Pitfalls
+```cpp
+#include "thinks/units/units.h"
+
+void SomeLegacyFunction(double offset_mm) { ... }
+
+void Foo() {
+  using namespace thinks::unit_literals;
+
+  constexpr auto my_mm = 12.3_mm;
+  constexpr auto my_cm = 2.5_cm;
+  
+  // When calling legacy functions we might be forced to pass in 
+  // the raw (untyped) unit value. In the code below (that doesn't compile) 
+  // it is unclear what the type of 'my_value' is. It would be straight-forward
+  // to implement a binary addition operator for [mm] and [cm] that returns the
+  // result as either [mm] or [cm], but it would be difficult to prevent users
+  // from making incorrect assumptions regarding the returned type. For this 
+  // reason many binary operators require the two units to be the same (only allowing
+  // value types to differ).
+  //
+  // constexpr auto my_value = my_mm + my_cm;
+  // SomeLegacyFunction(my_value.value());
+  
+  // Better to require explicit cast, the type of 'my_value' is clearly communicated.
+  // We are adding [mm] quantities so we expect the result to also be in [mm].
+  constexpr auto my_value = my_mm + thinks::unit_cast<decltype(my_mm)>(my_cm);
+  SomeLegacyFunction(my_value.value());
+}
+
+```
+
 
 ## Tests
 constexpr
