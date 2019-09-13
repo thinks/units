@@ -1,3 +1,7 @@
+// Copyright(C) Tommy Hinks <tommy.hinks@gmail.com>
+// This file is subject to the license terms in the LICENSE file
+// found in the top-level directory of this distribution.
+
 #pragma once
 
 #include <cstdint>
@@ -15,7 +19,7 @@ struct AngleTag;
 
 // Define scale factors for lengths. 
 // Using centimeters as unit length.
-using MeterScale = std::ratio<10, 1>::type;
+using MeterScale = std::ratio<100, 1>::type;
 using CentimeterScale = std::ratio<1>::type; // Unit length.
 using MillimeterScale = std::ratio<1, 10>::type;
 
