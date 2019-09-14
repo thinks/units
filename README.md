@@ -1,7 +1,7 @@
 # Units
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This repository contains a single-file, header-only, no-dependencies, mostly compile-time C++ library for performing type-safe operations on values representing units. There are plenty of cases where misinterpretating the meaning of a quantity can have catastrophic consequences. Some classic example include `centimeters`/`millimeters` and `degrees`/`radians`. Even the clever people at [NASA](https://www.latimes.com/archives/la-xpm-1999-oct-01-mn-17288-story.html) seem to struggle with such issues from time to time. A simple example illustrates a more type-safe approach for handling units.
+This repository contains a single-file, header-only, no-dependencies, mostly compile-time C++ library for performing type-safe operations on values representing units. There are plenty of cases where misinterpretating the meaning of a quantity can have catastrophic consequences. Some classic example include `centimeters`/`millimeters` and `degrees`/`radians`. Even the clever people at [NASA](https://www.latimes.com/archives/la-xpm-1999-oct-01-mn-17288-story.html) seem to struggle with such issues from time to time. A simple example illustrates the basic idea of using types to represent units.
 ```cpp
 #include <iostream>
 #include "thinks/units/units.h"
@@ -9,16 +9,21 @@ This repository contains a single-file, header-only, no-dependencies, mostly com
 void Foo() {
   using namespace thinks::unit_literals;
 
-  // Construction using literal, conversion using explicit casts.
+  // Construction using literal, conversions using explicit casts.
   constexpr auto my_mm = 12.3_mm;
   constexpr auto my_cm = thinks::unit_cast<thinks::Centimeters<double>>(my_mm);
   constexpr auto my_m = thinks::unit_cast<thinks::Meters<double>>(my_mm);
+
+  static_assert(my_mm == my_cm && my_mm == my_m, "equal lengths");
 
   // Prints "12.3 [mm] is the same as 1.23 [cm] or 0.0123 [m]"
   std::cout << my_mm << " is the same as " << my_cm << " or " << my_m << '\n';
 }
 ```
-The key idea is that a value representing a millimeter quantity has a different type than a value representing a centimeter quantity. Converting between millimeters and centimeters is of course trivial, but requires an explicit cast. This can be used to create type-safe interfaces, avoiding reliance on conventions or other hard to enforce constructs. Consider the following weakly enforced code:
+The key idea is that a value representing a millimeter quantity has a different type than a value representing a centimeter quantity. Converting between millimeters and centimeters is of course trivial, but requires an explicit cast. This can be used to create type-safe interfaces, avoiding reliance on conventions or other hard to enforce constructs. 
+
+## Motivation
+Consider the following code, where units are weakly enforced using function names:
 ```cpp
 // Real function names probably less informative...
 double SomeFunctionThatReturnsCm() { ... }
@@ -32,12 +37,12 @@ void Foo() {
   SomeFunctionThatTakesInMm(my_value);
 }
 ```
-Consider the following alternative:
+Above, the compiler has no way of detecting the error of passing centimeters when millimeters are expected. Now, consider the following alternative:
 ```cpp
 #include "thinks/units/units.h"
 
-units::Centimeters<double> SomeFunctionThatReturnsCm() { ... }
-void SomeFunctionThatTakesInMm(units::Millimeters<double> offset) { ... }
+thinks::Centimeters<double> SomeFunctionThatReturnsCm() { ... }
+void SomeFunctionThatTakesInMm(thinks::Millimeters<double> offset) { ... }
 
 void Foo() {
   const auto my_value = SomeFunctionThatReturnsCm();
@@ -49,20 +54,13 @@ void Foo() {
   // 
   // Force user to explicit convert the value to [mm], which will automatically 
   // apply the required scaling.
-  SomeFunctionThatTakesInMm(units::unit_cast<units::Millimeters<double>>(my_value));
+  SomeFunctionThatTakesInMm(thinks::unit_cast<units::Millimeters<double>>(my_value));
 }
 ```
-Above
-
-behave like built-in types, value type promotion
-
-changes base unit to get best precision, cm in our case
-
-compile-time
-
-
+In the snippet above, interfaces have been changed so that units are communicated explicitly using types (as opposed to function names). This makes things simple and clear, at the expense of being slightly more verbose. 
 
 ## Pitfalls
+Inevitably, we are forced to interact with code we cannot change, be it in-house legacy code or third party libraries. In such cases we have no choice but to expose the raw built-in types across function boundaries. These scenarios have informed the design of this library, where we attempt to avoid confusion at the expense of introducing a little extra verbosity. The snipped below shows an example of such a scenario:
 ```cpp
 #include "thinks/units/units.h"
 
@@ -83,7 +81,7 @@ void Foo() {
   // reason many binary operators require the two units to be the same (only allowing
   // value types to differ).
   //
-  // constexpr auto my_value = my_mm + my_cm;
+  // constexpr auto my_value = my_mm + my_cm; // Unclear if my_value is [mm] or [cm].
   // SomeLegacyFunction(my_value.value());
   
   // Better to require explicit cast, the type of 'my_value' is clearly communicated.
@@ -91,8 +89,26 @@ void Foo() {
   constexpr auto my_value = my_mm + thinks::unit_cast<decltype(my_mm)>(my_cm);
   SomeLegacyFunction(my_value.value());
 }
-
 ```
+The actual culprit above is the keyword `auto`, which essentially hides the type of `my_value`. Since `auto` has become a commonly used feature (for good reasons), we have choosen to require the operands of operators that return a newly constructed unit to be of the same type (except for the underlying value type, which follows normal arithmetic promotion rules). In cases where an operators returns a boolean or scalar, this constraint is relaxed, such that units of the same type (e.g. length) can be used as operands, regardless of suffix. An example of value type promotion is shown below:
+```cpp
+// Value type promotion follows the normal rules for built-in types.
+// Here: double + long long -> double
+static_assert(std::is_same_v<decltype((5.0_mm).value()), double>, "");
+static_assert(std::is_same_v<decltype((10_mm).value()), long long>, "");
+static_assert(std::is_same_v<decltype((5.0_mm + 10_mm).value()), double>, "");
+```
+
+## Compile-time
+With modern C++ it is possible to 
+
+behave like built-in types, value type promotion
+
+changes base unit to get best precision, cm in our case
+
+
+
+
 
 
 ## Tests
