@@ -9,6 +9,12 @@
 #include <ratio>
 #include <type_traits>
 
+#if (__cplusplus >= 201703L)
+  #define NO_DISCARD [[nodiscard]]
+#else
+  #define NO_DISCARD
+#endif
+
 namespace thinks {
 namespace units_internal {
 
@@ -54,6 +60,7 @@ template <typename T>
 constexpr bool is_tag_v = is_tag<T>::value;
 
 template <typename ToArithT, typename FromArithT>
+NO_DISCARD
 constexpr auto numeric_cast(const FromArithT v) /*noexcept*/ -> ToArithT {
   // TODO(thinks): Implement range checking, similar to boost::numeric_cast.
   return static_cast<ToArithT>(v);
@@ -69,7 +76,7 @@ struct ScaleHelper {
 
   // clang-format off
   template <typename ToArithT, typename FromArithT>
-  constexpr static auto Scale(const FromArithT v) 
+  NO_DISCARD constexpr static auto Scale(const FromArithT v) 
       //noexcept(noexcept(static_cast<ToArithT>((ScaleDiv::num * v) / ScaleDiv::den))) 
       -> ToArithT {
     static_assert(std::is_arithmetic_v<FromArithT>, 
@@ -88,31 +95,31 @@ template <typename ScaleT, typename TagT>
 struct TagSuffix; // Generic, not implementd.
 template <>
 struct TagSuffix<units_internal::MeterScale, units_internal::LengthTag> {
-  static constexpr const char* c_str() noexcept { return "m"; }
+  static NO_DISCARD constexpr const char* c_str() noexcept { return "m"; }
 };
 template <>
 struct TagSuffix<units_internal::CentimeterScale, units_internal::LengthTag> {
-  static constexpr const char* c_str() noexcept { return "cm"; }
+  static NO_DISCARD constexpr const char* c_str() noexcept { return "cm"; }
 };
 template <>
 struct TagSuffix<units_internal::MillimeterScale, units_internal::LengthTag> {
-  static constexpr const char* c_str() noexcept { return "mm"; }
+  static NO_DISCARD constexpr const char* c_str() noexcept { return "mm"; }
 };
 template <>
 struct TagSuffix<units_internal::DegreeScale, units_internal::AngleTag> {
-  static constexpr const char* c_str() noexcept { return "deg"; }
+  static NO_DISCARD constexpr const char* c_str() noexcept { return "deg"; }
 };
 template <>
 struct TagSuffix<units_internal::RadianScale, units_internal::AngleTag> {
-  static constexpr const char* c_str() noexcept { return "rad"; }
+  static NO_DISCARD constexpr const char* c_str() noexcept { return "rad"; }
 };
 template <>
 struct TagSuffix<units_internal::GrayScale, units_internal::DoseTag> {
-  static constexpr const char* c_str() noexcept { return "Gy"; }
+  static NO_DISCARD constexpr const char* c_str() noexcept { return "Gy"; }
 };
 template <>
 struct TagSuffix<units_internal::CentiGrayScale, units_internal::DoseTag> {
-  static constexpr const char* c_str() noexcept { return "cGy"; }
+  static NO_DISCARD constexpr const char* c_str() noexcept { return "cGy"; }
 };
 
 // Value types for units created using literals.
@@ -146,7 +153,7 @@ class Unit {
       : value_{std::move(v)} {}
   // clang-format on    
 
-  constexpr ValueType value() const noexcept { return value_; }
+  NO_DISCARD constexpr ValueType value() const noexcept { return value_; }
 
   // Add a unit.
   // Supports different scales since there is no ambiguity in return type.
@@ -202,6 +209,7 @@ class Unit {
   //
   // clang-format off
   template <typename ArithT2, typename ScaleT2>
+  NO_DISCARD
   friend constexpr auto operator==(const Unit lhs,
                                    const Unit<ArithT2, ScaleT2, TagT> rhs) 
       //noexcept(noexcept(unit_cast<Unit<ArithT, ScaleT, TagT>>(rhs)))
@@ -218,6 +226,7 @@ class Unit {
   //
   // clang-format off
   template <typename ArithT2, typename ScaleT2>
+  NO_DISCARD
   friend constexpr auto operator!=(const Unit lhs,
                                    const Unit<ArithT2, ScaleT2, TagT> rhs) 
       //noexcept(noexcept(unit_cast<Unit<ArithT, ScaleT, TagT>>(rhs)))
@@ -230,6 +239,7 @@ class Unit {
   // The value type of the returned unit follows normal arithmetic promotion.
   //
   // clang-format off
+  NO_DISCARD
   friend constexpr auto operator-(const Unit u)
       //noexcept(noexcept(-u.value())) 
       -> Unit<decltype(-u.value()), ScaleT, TagT> {
@@ -246,6 +256,7 @@ class Unit {
   //
   // clang-format off
   template <typename ArithT2>
+  NO_DISCARD
   friend constexpr auto operator-(const Unit lhs,
                                   const Unit<ArithT2, ScaleT, TagT> rhs) 
       //noexcept(noexcept(lhs.value() - rhs.value()))
@@ -263,6 +274,7 @@ class Unit {
   //
   // clang-format off
   template <typename ArithT2>
+  NO_DISCARD
   friend constexpr auto operator+(const Unit lhs,
                                   const Unit<ArithT2, ScaleT, TagT> rhs) 
       //noexcept(noexcept(lhs.value() + rhs.value()))
@@ -277,6 +289,7 @@ class Unit {
   // 
   // clang-format off
   template <typename ArithT2>
+  NO_DISCARD
   friend constexpr auto operator*(const Unit lhs,
                                   const ArithT2 rhs) 
       // noexcept...
@@ -291,8 +304,8 @@ class Unit {
   // The value type of the returned unit follows normal arithmetic promotion.
   // 
   // clang-format off
-  template <typename ArithT, typename ScaleT, typename TagT,
-            typename ArithT2>
+  template <typename ArithT2>
+  NO_DISCARD
   friend constexpr auto operator*(const ArithT2 lhs,
                                   const Unit rhs) 
       // noexcept...
@@ -310,6 +323,7 @@ class Unit {
   // 
   // clang-format off
   template <typename ArithT2, typename ScaleT2>
+  NO_DISCARD
   friend constexpr auto operator/(const Unit lhs, 
                                   const Unit<ArithT2, ScaleT2, TagT> rhs) 
       // noexcept...
@@ -322,6 +336,7 @@ class Unit {
   // 
   // clang-format off
   template <typename ArithT2>
+  NO_DISCARD
   friend constexpr auto operator/(const Unit lhs, const ArithT2 rhs) 
       // noexcept...
       -> Unit<decltype(lhs.value() / rhs), ScaleT, TagT> {
@@ -337,6 +352,7 @@ class Unit {
 // clang-format off
 template <typename ToUnitT, 
           typename FromArithT, typename FromScaleT, typename TagT>
+NO_DISCARD          
 constexpr auto unit_cast(const Unit<FromArithT, FromScaleT, TagT> from) 
     //noexcept(noexcept(
     //  units_internal::ScaleHelper<FromScaleT, typename ToUnitT::ScaleType>::
@@ -374,78 +390,78 @@ inline namespace unit_literals {
 //   pass a type argument to a literal operator since templating
 //   is limited for literals. Hence, we fall back on hard-coding
 //   the value types for the constructed unit objects.
-constexpr auto operator"" _m(unsigned long long v)
+NO_DISCARD constexpr auto operator"" _m(unsigned long long v)
     // noexcept
     -> Meters<units_internal::LiteralIntType> {
   return {units_internal::numeric_cast<units_internal::LiteralIntType>(v)};
 }
-constexpr auto operator"" _m(long double v)
+NO_DISCARD constexpr auto operator"" _m(long double v)
     // noexcept
     -> Meters<units_internal::LiteralFloatType> {
   return {units_internal::numeric_cast<units_internal::LiteralFloatType>(v)};
 }
 
-constexpr auto operator"" _cm(unsigned long long v)
+NO_DISCARD constexpr auto operator"" _cm(unsigned long long v)
     // noexcept
     -> Centimeters<units_internal::LiteralIntType> {
   return {units_internal::numeric_cast<units_internal::LiteralIntType>(v)};
 }
-constexpr auto operator"" _cm(long double v)
+NO_DISCARD constexpr auto operator"" _cm(long double v)
     // noexcept
     -> Centimeters<units_internal::LiteralFloatType> {
   return {units_internal::numeric_cast<units_internal::LiteralFloatType>(v)};
 }
 
-constexpr auto operator"" _mm(unsigned long long v)
+NO_DISCARD constexpr auto operator"" _mm(unsigned long long v)
     // noexcept
     -> Millimeters<units_internal::LiteralIntType> {
   return {units_internal::numeric_cast<units_internal::LiteralIntType>(v)};
 }
-constexpr auto operator"" _mm(long double v)
+NO_DISCARD constexpr auto operator"" _mm(long double v)
     // noexcept
     -> Millimeters<units_internal::LiteralFloatType> {
   return {units_internal::numeric_cast<units_internal::LiteralFloatType>(v)};
 }
 
-constexpr auto operator"" _deg(unsigned long long v)
+NO_DISCARD constexpr auto operator"" _deg(unsigned long long v)
     // noexcept
     -> Degrees<units_internal::LiteralIntType> {
   return {units_internal::numeric_cast<units_internal::LiteralIntType>(v)};
 }
-constexpr auto operator"" _deg(long double v)
+NO_DISCARD constexpr auto operator"" _deg(long double v)
     // noexcept 
     -> Degrees<units_internal::LiteralFloatType> {
   return {units_internal::numeric_cast<units_internal::LiteralFloatType>(v)};
 }
 
-constexpr auto operator"" _rad(unsigned long long v)
+NO_DISCARD constexpr auto operator"" _rad(unsigned long long v)
     // noexcept 
     -> Radians<units_internal::LiteralIntType> {
   return {units_internal::numeric_cast<units_internal::LiteralIntType>(v)};
 }
-constexpr auto operator"" _rad(long double v)
+NO_DISCARD constexpr auto operator"" _rad(long double v)
     // noexcept 
     -> Radians<units_internal::LiteralFloatType> {
   return {units_internal::numeric_cast<units_internal::LiteralFloatType>(v)};
 }
 
-constexpr auto operator"" _Gy(unsigned long long v)
+NO_DISCARD constexpr auto operator"" _Gy(unsigned long long v)
     // noexcept 
     -> Gray<units_internal::LiteralIntType> {
   return {units_internal::numeric_cast<units_internal::LiteralIntType>(v)};
 }
-constexpr auto operator"" _Gy(long double v)
+NO_DISCARD constexpr auto operator"" _Gy(long double v)
     // noexcept 
     -> Gray<units_internal::LiteralFloatType> {
   return {units_internal::numeric_cast<units_internal::LiteralFloatType>(v)};
 }
 
-constexpr auto operator"" _cGy(unsigned long long v)
+NO_DISCARD constexpr auto operator"" _cGy(unsigned long long v)
     // noexcept 
     -> CentiGray<units_internal::LiteralIntType> {
   return {units_internal::numeric_cast<units_internal::LiteralIntType>(v)};
 }
-constexpr auto operator"" _cGy(long double v)
+NO_DISCARD constexpr auto operator"" _cGy(long double v)
     // noexcept 
     -> CentiGray<units_internal::LiteralFloatType> {
   return {units_internal::numeric_cast<units_internal::LiteralFloatType>(v)};
@@ -464,5 +480,7 @@ std::ostream& operator<<(std::ostream& os,
   return os;
 }
 // clang-format on
+
+#undef NO_DISCARD
 
 }  // namespace thinks

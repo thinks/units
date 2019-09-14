@@ -1,3 +1,7 @@
+// Copyright(C) Tommy Hinks <tommy.hinks@gmail.com>
+// This file is subject to the license terms in the LICENSE file
+// found in the top-level directory of this distribution.
+
 #define _USE_MATH_DEFINES  // M_PI
 
 #include <clocale>
@@ -13,34 +17,30 @@
 
 #include "thinks/units/units.h"
 
-void OnFatalError(const std::exception& ex) {
-  fprintf(stderr, "\n! %s\n", ex.what());
-  fflush(stderr);  // It's here that failure may be discovered.
-  if (ferror(stderr)) {
-    throw ex;
-  }
-}
-
-// Unit instances can interact with each other if they have the same
-// tag (category), e.g. length, angle. Scaling is automatically handled by the
-// types, so that cm's can interact with mm's. However, this interaction is not 
-// always automatically handled. By design, we require an explicit cast to add 
-// mm's to cm's. The rationale for this is that it is not obvious what unit 
-// the result should be given in. By forcing the user to cast the values into 
-// the same scale we are defering the choice to the user.
-
-void main_func() {
+// Check compile-time constructs.
+constexpr bool StaticTests() {
   using namespace thinks::unit_literals;
 
   // Construction.
   {
     // Explicit value type.
     constexpr auto a = thinks::Millimeters<float>{1.23f};
+    static_assert(std::is_same_v<decltype(a.value()), float>, "");
+
+    // Invalid, would require narrowing conversion.
+    // constexpr auto x = thinks::Millimeters<std::uint16_t>{78312};
 
     // Automatic value type from literal operator.
     constexpr auto b = 1.23_mm;
     static_assert(std::is_same_v<decltype(b.value()), double>, "");
+
+    constexpr auto c = 123_mm;
+    static_assert(std::is_same_v<decltype(c.value()), long long>, "");
   }
+
+  // With C++17 this gives a warning due to the [[nodiscard]] attribute.
+  // 12.3_mm + 3.2_mm;
+
 
   // unit_cast (also allows casting value type)
   {
@@ -140,6 +140,9 @@ void main_func() {
     static_assert(m == 2.0_cm, "");
   }
 
+  return true;
+
+#if 0
   // Output stream operator.
   {
     std::cout.precision(15);
@@ -158,6 +161,7 @@ void main_func() {
 
     std::cout << my_mm << " is the same as " << my_cm << " or " << my_m << '\n';              
   }
+  #endif
 }
 
 // For README.md.
@@ -239,16 +243,29 @@ bool Snippet3() {
   return true;
 }
 
-int main(int argc, char* argv[]) {
+void MainFunc() {
+  std::cout << __cplusplus << '\n';
+
   auto success = true;
+  success &= StaticTests();
   success &= Snippet0();
   success &= Snippet1();
   success &= Snippet2();
   success &= Snippet3();
-  return success;
+
+  if (!success) {
+    throw std::runtime_error("test failed");
+  }
 }
 
-#if 0
+void OnFatalError(const std::exception& ex) {
+  fprintf(stderr, "\n! %s\n", ex.what());
+  fflush(stderr);  // It's here that failure may be discovered.
+  if (ferror(stderr)) {
+    throw ex;
+  }
+}
+
 int main(int argc, char* argv[]) {
   // With g++ setlocale() isn't guaranteed called by the C++ level locale
   // handling. This call is necessary for e.g. wide streams.
@@ -256,12 +273,12 @@ int main(int argc, char* argv[]) {
   setlocale(LC_ALL, "");                 // C level global locale.
   std::locale::global(std::locale(""));  // C++ level global locale.
   try {
-    main_func();  // The app's C++ level main function.
+    MainFunc();  // The app's C++ level main function.
     return EXIT_SUCCESS;
   } catch (const std::system_error& ex) {
-    // TODO: also retrieve and report error code.
+    // TODO(thinks): also retrieve and report error code.
     OnFatalError(ex);
-  } catch (std::exception const& ex) {
+  } catch (const std::exception& ex) {
     OnFatalError(ex);
   } catch (const int code) {
     std::ostringstream oss;
@@ -273,4 +290,3 @@ int main(int argc, char* argv[]) {
   }
   return EXIT_FAILURE;
 }
-#endif

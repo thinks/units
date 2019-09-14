@@ -3,11 +3,11 @@
 # found in the top-level directory of this distribution.
 
 cmake_minimum_required(VERSION 3.5)
-project(thinks_units)
+project(thinks_units CXX)
 
-# Build tests and examples only when _not_ included as subproject.
-get_directory_property(HAS_PARENT PARENT_DIRECTORY)
-if (NOT HAS_PARENT)
+option(THINKS_UNITS_RUN_TESTS "If ON, thinks::units tests will be run." OFF)
+
+if (${THINKS_UNITS_RUN_TESTS})
   # Enable CTest.
   # This will set BUILD_TESTING to ON unless otherwise specified
   # on the command line.
@@ -16,7 +16,11 @@ if (NOT HAS_PARENT)
   message(STATUS "thinks::units: BUILD_TESTING = ${BUILD_TESTING}")
 endif()
 
-if(NOT "${CMAKE_CXX_STANDARD}")
+# Include current path.
+list(APPEND THINKS_UNITS_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR})
+
+# Check if CXX_STANDARD was specified, otherwise choose default.
+if (NOT "${CMAKE_CXX_STANDARD}")
   message(STATUS "thinks::units: No CMAKE_CXX_STANDARD set, assuming 14")
   set(THINKS_UNITS_CXX_STANDARD 14)
 else()
