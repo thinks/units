@@ -82,7 +82,7 @@ void Foo() {
   // value types to differ).
   //
   // constexpr auto my_value = my_mm + my_cm; // Unclear if my_value is [mm] or [cm].
-  // SomeLegacyFunction(my_value.value());
+  // SomeLegacyFunction(my_value.value());    // Are we passing in [mm] or [cm]?
   
   // Better to require explicit cast, the type of 'my_value' is clearly communicated.
   // We are adding [mm] quantities so we expect the result to also be in [mm].
@@ -90,13 +90,27 @@ void Foo() {
   SomeLegacyFunction(my_value.value());
 }
 ```
-The actual culprit above is the keyword `auto`, which essentially hides the type of `my_value`. Since `auto` has become a commonly used feature (for good reasons), we have choosen to require the operands of operators that return a newly constructed unit to be of the same type (except for the underlying value type, which follows normal arithmetic promotion rules). In cases where an operators returns a boolean or scalar, this constraint is relaxed, such that units of the same type (e.g. length) can be used as operands, regardless of suffix. An example of value type promotion is shown below:
+The actual culprit above is the keyword `auto`, which essentially hides the type of `my_value`. Since `auto` sees widespread use (for good reasons), we have choosen to require that the operands of operators that return a newly constructed unit have the same tag (e.g. length) and scale. In cases where operators return booleans or scalars, this constraint is relaxed, such that units with the same tag, regardless of scale, can be used as operands, as shown below. Note that when value types differ normal arithmetic promotion rules apply.
 ```cpp
-// Value type promotion follows the normal rules for built-in types.
-// Here: double + long long -> double
-static_assert(std::is_same_v<decltype((5.0_mm).value()), double>, "");
-static_assert(std::is_same_v<decltype((10_mm).value()), long long>, "");
-static_assert(std::is_same_v<decltype((5.0_mm + 10_mm).value()), double>, "");
+#include "thinks/units/units.h"
+
+using namespace thinks::unit_literals;
+
+// Binary division.
+// Divide by unit, dimensionality is lost and we get a (unit-less) scalar.
+// The scalar type is determined by normal arithmetic type promotion.
+// Note that units with different scales are supported since the return type
+// is not a unit.
+static_assert(14_cm / 7_cm == 2, "");
+static_assert(14_cm / 70_mm == 2, "");
+
+// Divide by scalar, dimensionality is preserved, the result
+// is a unit with the same as scale and tag as lhs, but with a promoted value type:
+// long long / double -> double
+static_assert(14_cm / 7.0 == 2.0_cm, "");
+static_assert(std::is_same_v<decltype((14_cm).value()), long long>, "");
+static_assert(std::is_same_v<decltype(7.0), double>, "");
+static_assert(std::is_same_v<decltype((14_cm / 7.0).value()), double>, "");
 ```
 
 ## Compile-time
