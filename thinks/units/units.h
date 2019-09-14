@@ -59,10 +59,10 @@ struct is_tag<DoseTag> : public std::true_type {};
 template <typename T>
 constexpr bool is_tag_v = is_tag<T>::value;
 
+// TODO(thinks): Implement range checking, similar to boost::numeric_cast.
 template <typename ToArithT, typename FromArithT>
-NO_DISCARD
-constexpr auto numeric_cast(const FromArithT v) /*noexcept*/ -> ToArithT {
-  // TODO(thinks): Implement range checking, similar to boost::numeric_cast.
+NO_DISCARD constexpr auto numeric_cast(
+    const FromArithT v) /*noexcept*/ -> ToArithT {
   return static_cast<ToArithT>(v);
 }
 
@@ -92,7 +92,7 @@ struct ScaleHelper {
 
 // Suffix string based on scale and category tag.
 template <typename ScaleT, typename TagT>
-struct TagSuffix; // Generic, not implementd.
+struct TagSuffix;  // Generic, not implementd.
 template <>
 struct TagSuffix<units_internal::MeterScale, units_internal::LengthTag> {
   static NO_DISCARD constexpr const char* c_str() noexcept { return "m"; }
@@ -283,7 +283,7 @@ class Unit {
   }
   // clang-format on
 
-  // Multiply by scalar. 
+  // Multiply by scalar (rhs). 
   // Preserves multiplicative ordering.
   // The value type of the returned unit follows normal arithmetic promotion.
   // 
@@ -299,7 +299,7 @@ class Unit {
   }
   // clang-format on
 
-  // Multiply by scalar. 
+  // Multiply by scalar (lhs).  
   // Preserves multiplicative ordering.
   // The value type of the returned unit follows normal arithmetic promotion.
   // 
@@ -315,7 +315,7 @@ class Unit {
   }
   // clang-format on
 
-  // Divide two units sharing the same tag to produce a scalar value.
+  // Divide two same-tag-units to produce a scalar value.
   // Essentially, dimensionality is cancelled out by this operation.
   //
   // Allowing units of different scale here since there is no ambiguity in

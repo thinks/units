@@ -24,37 +24,48 @@ constexpr bool StaticTests() {
   // Construction.
   {
     // Explicit value type.
-    constexpr auto a = thinks::Millimeters<float>{1.23f};
-    static_assert(std::is_same_v<decltype(a.value()), float>, "");
-
-    // Invalid, would require narrowing conversion.
-    // constexpr auto x = thinks::Millimeters<std::uint16_t>{78312};
+    static_assert(
+        std::is_same_v<decltype(thinks::Millimeters<float>{1.23f}.value()),
+                       float>,
+        "");
 
     // Automatic value type from literal operator.
-    constexpr auto b = 1.23_mm;
-    static_assert(std::is_same_v<decltype(b.value()), double>, "");
+    static_assert(std::is_same_v<decltype((1.23_mm).value()), double>, "");
+    static_assert(std::is_same_v<decltype((123_mm).value()), long long>, "");
 
-    constexpr auto c = 123_mm;
-    static_assert(std::is_same_v<decltype(c.value()), long long>, "");
+    // Examples of invalid constructions.
+    // 
+    // Some operations are not possible if the arithmetic type
+    // parameter is const.
+    // auto x = thinks::Millimeters<const float>{1.23f};
+    // x *= 2; // Invalid!
+    //
+    // References and pointers are not arithmetic types.
+    // constexpr auto x = thinks::Millimeters<float&>{1.23f};
+    //
+    // Would require narrowing conversion.
+    // constexpr auto x = thinks::Millimeters<std::uint16_t>{78312};
   }
 
-  // With C++17 this gives a warning due to the [[nodiscard]] attribute.
-  // 12.3_mm + 3.2_mm;
-
-
-  // unit_cast (also allows casting value type)
+  // unit_cast (allows casting value type and scale if same tag)
   {
     // cm -> mm
-    constexpr auto a = thinks::unit_cast<thinks::Millimeters<double>>(1_cm);
+    static_assert(
+        std::is_same_v<
+            std::remove_const_t<decltype(
+                thinks::unit_cast<thinks::Millimeters<double>>(1_cm))>,
+            thinks::Millimeters<double>>,
+        "");
+    static_assert(1_cm == 10.0_mm, "");
 
-    static_assert(std::is_same_v<std::remove_const_t<decltype(a)>,
-                                 thinks::Millimeters<double>>, "");
-    static_assert(a == 10.0_mm, "scaled value");
-
-    // Cast from literal operator value type to desired value type 
+    // Cast from literal operator value type to desired value type
     // (double -> float).
-    constexpr auto b = thinks::unit_cast<thinks::Millimeters<float>>(1.23_mm);
-    static_assert(std::is_same_v<decltype(b.value()), float>, "");
+    static_assert(
+        std::is_same_v<
+            decltype(
+                thinks::unit_cast<thinks::Millimeters<float>>(1.23_mm).value()),
+            float>,
+        "");
 
     // Cannot cast between different tags.
     // Doesn't compile, units have different tags (cm -> rad):
@@ -67,34 +78,32 @@ constexpr bool StaticTests() {
     static_assert(50_mm == 5_cm, "different scale");
     static_assert(5.0_mm != 7_mm, "different value types");
     static_assert(41_mm != 4_cm, "different scale");
+
+    // Not possible to compare units with different tags.
+    // The following doesn't compile.
+    // constexpr bool x = 5_cm == 5_deg;
   }
 
   // Arithmetic operations.
   {
     // Value type promotion follows the normal rules for built-in types.
     // Here: double + long long -> double
-    constexpr auto a = 5.0_mm;
-    constexpr auto b = 10_mm;
-    constexpr auto c = a + b;
-    static_assert(std::is_same_v<decltype(a.value()), double>, "");
-    static_assert(std::is_same_v<decltype(b.value()), long long>, "");
-    static_assert(std::is_same_v<decltype(c.value()), double>, "value type promotion");
+    static_assert(std::is_same_v<decltype((5.0_mm).value()), double>, "");
+    static_assert(std::is_same_v<decltype((10_mm).value()), long long>, "");
+    static_assert(std::is_same_v<decltype((5.0_mm + 10_mm).value()), double>,
+                  "");
 
     // Unary addition (add-equals), supports different scales.
     // Return type is always same as lhs.
-    static_assert((15_mm += 1_mm) == 16_mm &&
-                  (15_mm += 1_mm) == 1.6_cm, "");
-    static_assert((15_mm += 1_cm) == 25_mm && 
-                  (15_mm += 1_cm) == 2.5_cm, "");
+    static_assert((15_mm += 1_mm) == 16_mm && (15_mm += 1_mm) == 1.6_cm, "");
+    static_assert((15_mm += 1_cm) == 25_mm && (15_mm += 1_cm) == 2.5_cm, "");
     // Doesn't compile, cannot add a scalar to a unit:
     // static_assert((10_mm += 1) == ???, "");
 
     // Unary subtraction (sub-equals), supports different scales.
     // Return type is always same as lhs.
-    static_assert((15_mm -= 1_mm) == 14_mm &&
-                  (15_mm -= 1_mm) == 1.4_cm, "");
-    static_assert((15_mm -= 1_cm) == 5_mm && 
-                  (15_mm -= 1_cm) == 0.5_cm, "");
+    static_assert((15_mm -= 1_mm) == 14_mm && (15_mm -= 1_mm) == 1.4_cm, "");
+    static_assert((15_mm -= 1_cm) == 5_mm && (15_mm -= 1_cm) == 0.5_cm, "");
     // Doesn't compile, cannot subtract a scalar from a unit:
     // static_assert((10_mm -= 1) == ???, "");
 
@@ -102,45 +111,41 @@ constexpr bool StaticTests() {
     static_assert((1.4_cm *= 10) == 14.0_cm, "");
 
     // Binary addition.
-    constexpr auto d = 5.0_cm;
-    constexpr auto e = 10_mm;
-    
-    // Doesn't compile, units have different scale:  
-    // constexpr auto f = d + e;
+    // Doesn't compile, units have different scale:
+    // constexpr auto x = 5.0_cm + 10_mm;
     //
     // Need to manually cast to same scale:
-    constexpr auto f = d + thinks::unit_cast<decltype(d)>(e);
-    static_assert(std::is_same_v<decltype(f), decltype(d)>, "");
+    static_assert(2_cm + 3_cm == 5_cm, "");
+    static_assert(
+        2_cm + thinks::unit_cast<thinks::Centimeters<int>>(30_mm) == 5_cm, "");
 
     // Unary negation.
-    constexpr auto g = 14.2_deg;
-    constexpr auto h = -g;
-    static_assert(h.value() == -g.value(), "");
-    static_assert(-thinks::Centimeters<double>{2.14} == thinks::Centimeters<double>{-2.14}, "");
-      
+    static_assert(-thinks::Centimeters<double>{2.14} ==
+                      thinks::Centimeters<double>{-2.14},
+                  "");
+
     // Unary division.
-    // Preserves dimensionality, simply divide the unit in "denom"
+    // Preserves dimensionality, simply divide the unit into "denom"
     // equal parts.
-    constexpr auto i = 14_cm /= 7;
-    static_assert(i == 2_cm, "");
+    static_assert((14_cm /= 7) == 2_cm, "");
 
     // Binary division.
     // Divide by unit, dimensionality is lost and we get a (unit-less) scalar.
     // The scalar type is determined by normal arithmetic type promotion.
     // Note that we support units of different scales since the return type
     // is not a unit.
-    constexpr auto j = 14_cm / 7_cm;
-    static_assert(j == 2, "");
-    constexpr auto k = 14_cm / 70_mm;
-    static_assert(k == 2, "");
+    static_assert(14_cm / 7_cm == 2, "");
+    static_assert(14_cm / 70_mm == 2, "");
 
     // Divide by scalar, dimensionality is preserved, result
     // is a unit (same as lhs, possibly different value type).
-    constexpr auto m = 14_cm / 7.0;
-    static_assert(m == 2.0_cm, "");
+    static_assert(14_cm / 7.0 == 2.0_cm, "");
+
+    // With C++17 this gives a warning due to the [[nodiscard]] attribute.
+    // 12.3_mm + 3.2_mm;
   }
 
-  return true;
+  return true; // If this function compiled we are good!
 
 #if 0
   // Output stream operator.
