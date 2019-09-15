@@ -115,19 +115,12 @@ static_assert(std::is_same_v<decltype((14_cm / 7.0).value()), double>, "");
 ```
 
 ## Compile-time
-With modern C++ it is possible to 
-
-behave like built-in types, value type promotion
-
-changes base unit to get best precision, cm in our case
+With modern C++ it is possible to implement most of the operations for units as compile-time construct. Thus, type-safety comes as a trade-off with slightly increased compilation times, but with no effect on run-time performance. Whenever possible, our unit types strive to behave as the built-in arithmetic types, following the same promotion rules. Compile-time constructs also enable tests to be written in such a way that the code will not compile if tests would fail, using `constexpr` and `static_assert`.
 
 
+changes base unit to get best precision, cm in our case, (show snippet where length ratios are defined).
 
 
-
-
-## Tests
-constexpr
-
-C++14
+## Cloning and Testing
+Example of test, link to file with tests. snippet with clone, build (with cmake config flags), run ctest. Note that build should fail if there are static errors. C++17 adds [[nodiscard]] attribute, not available in C++14.
 
